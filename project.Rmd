@@ -1,0 +1,212 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+library(readxl)
+nob <- read_excel("nobel.xlsx")
+
+```
+
+```{r}
+
+library(tidyverse)
+library(shiny)
+library(DT)
+library(leaflet)
+library(plotly)
+library(shinydashboard)
+library(ggrepel)
+library(ggplot2)    
+library(ggfortify) 
+library(dplyr)
+
+```
+
+```{r}
+for(j in 1:963) {  
+if(nob[[j,"gender"]]=="org" | is.na(nob[[j,"gender"]]==TRUE)) {
+    nob[[j,"bornCountryCode"]] = "Not_applicable"
+  }
+}
+```
+
+
+```{r}
+noblist = nob %>%
+select(year, bornCountryCode) %>%
+group_by(bornCountryCode) %>%
+dplyr::summarise(n_prizes = n(), .groups = 'drop') %>%
+arrange(desc(n_prizes)) %>%
+top_n(10, n_prizes)
+noblist
+```
+
+
+
+
+```{r}
+top=list(unique(noblist$bornCountryCode))[[1]]
+nobtop=nob %>%
+select(year, category, bornCountryCode) %>%
+filter(bornCountryCode %in% top) %>%
+arrange(year, bornCountryCode) 
+
+```
+
+
+```{r}
+
+GRAY1 = "#231F20"
+GRAY2 = "#414040"
+GRAY3 = "#555655"
+GRAY4 = "#646369"
+GRAY5 = "#76787B"
+GRAY6 = "#828282"
+GRAY7 = "#929497"
+GRAY8 = "#A6A6A5"
+GRAY9 = "#BFBEBE"
+
+theme_swd <- function() {
+  theme_minimal(base_size = 11, base_family = "Helvetica") +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(size = .13, color = GRAY9),
+      axis.text = element_text(color = GRAY7),
+      axis.ticks.x = element_line(size = 0.5, color = GRAY9),
+      axis.ticks.y = element_line(size = 0.5, color = GRAY9),
+      axis.title = element_text(color = GRAY3),
+      axis.title.y = element_text(hjust = 0.5, margin = margin(0, 6, 0, 15, "pt")),
+      axis.title.x = element_text(hjust = 0.5, margin = margin(6, 0, 15, 0, "pt")),
+      plot.subtitle = element_text(color = GRAY4, size= 11),
+      plot.title = element_text(color = GRAY4, size= 15),
+      plot.title.position = "plot", # This aligns the plot title to the very left edge
+      plot.caption = element_text(hjust = 0, color = GRAY6),
+      plot.caption.position = "plot",
+      plot.margin = margin(.5,.5,.5,.5,"cm"),
+      strip.text = element_text(color = GRAY7)) 
+}
+
+
+ui = dashboardPage(
+  dashboardHeader(title = "Nobel Prize Awards"),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem(
+        text = "GRAPH",
+        tabName = "Graph"
+      ), 
+      menuItem(
+        text = "NUMBER",
+        tabName = "Number"
+      ), 
+      
+      menuItem(
+        text = "FACTORS",
+        tabName = "Factors"
+      ), 
+ 
+      menuItem(
+        text = "SUMMARY",
+        tabName = "Summary"
+      )
+      
+
+    )
+  ),
+  dashboardBody(
+    tabItems(
+      tabItem(
+        "Graph",fluidRow(box(width = 12, status = "primary",
+        plotOutput("plot"))),  fluidRow(box(width = 12, height = 2,  
+        checkboxGroupInput(
+        "select", 
+        h5("Categories"), 
+        choices = list("chemistry", "physics", "medicine", "literature", "economics", "peace"), selected = "chemistry", inline = TRUE))
+    )), tabItem(
+        "Number", imageOutput("image")),
+    
+    tabItem(
+        "Factors", imageOutput("image2")), 
+      tabItem(
+        "Number", valueBoxOutput("physics"), valueBoxOutput("chemistry"),
+        valueBoxOutput("medicine"), valueBoxOutput("literature"), valueBoxOutput("economics"), valueBoxOutput("peace"), box(width = 4, textInput("country", label = "Birth country code", value = "GB")),
+                          
+    box(width = 4, numericInput("num1", label = "From", value = 1901)),
+    box(width = 4, numericInput("num2", label = "To", value = 2020))
+        ), 
+    tabItem( "Summary", imageOutput("image3"))
+    )
+  )
+)
+
+
+server = function(input, output){
+  output$plot = renderPlot({
+    if(is.null(input$select)){
+     cat = "chemistry"
+    }
+    
+    else{
+     cat = input$select
+  }
+    
+    
+    p = nobtop %>% 
+  filter(category == cat)
+    ggplot(p, aes(y= year, x = bornCountryCode, color = bornCountryCode, shape = category)) + geom_jitter(width = 0.25,size = 5, alpha = 0.7) +
+      scale_x_discrete(name = "Birth country")  + scale_y_continuous(name = "year", breaks = c(1900,1930,1945,1960,1990,2020))+ scale_color_discrete(name = "Birth country") + geom_hline(yintercept=1945, linetype="dashed", color="grey", size=2, show.legend = TRUE) + ggtitle("Nobel prize winners", subtitle = "Year of award might show geopolitical changes") + theme_swd()
+    
+    
+    
+  })
+  
+  output$image <- renderImage({
+    pic <- "1.png"
+    list(src = pic,
+         contentType = 'image/png',
+         width = 600,
+         height = 450,
+         alt = "This is alternate text")
+  }, deleteFile = F)
+  
+  output$image2 <- renderImage({
+    pic <- "2.png"
+    list(src = pic,
+         contentType = 'image/png',
+         width = 720,
+         height = 540,
+         alt = "This is alternate text")
+  }, deleteFile = F)
+  
+  output$image3 <- renderImage({
+    pic <- "3.png"
+    list(src = pic,
+         contentType = 'image/png',
+         width = 600,
+         height = 450,
+         alt = "This is alternate text")
+  }, deleteFile = F)
+  
+  
+ 
+  
+}
+
+shinyApp(ui = ui, server = server)
+
+
+```
+
+
+ 
+
+
+
+
+
+
